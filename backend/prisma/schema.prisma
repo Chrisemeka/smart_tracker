@@ -1,0 +1,116 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Users table - handles both OAuth and email/password auth
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  password      String?  // null for OAuth users
+  googleId      String?  @unique // for Google OAuth
+  profileImage  String?
+  emailVerified Boolean  @default(false)
+  provider      AuthProvider @default(local)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relationships
+  buckets       Bucket[]
+  records       Record[]
+  otp           Otp[]
+  authLogs      AuthLog[]
+  refreshTokens RefreshToken[]
+  
+  @@map("users")
+}
+
+// Buckets table - user's tracking categories
+model Bucket {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  icon        String?
+  fieldSchema Json    // Store entire field structure here
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  records Record[]
+  
+  @@map("buckets")
+}
+
+// Records table - individual items in buckets
+model Record {
+  id        String   @id @default(cuid())
+  data      Json     // stores all dynamic field values
+  bucketId  String
+  userId    String   // for easier queries
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relationships
+  bucket Bucket @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("records")
+}
+
+// Refresh Token table - stores users refresh tokens
+model RefreshToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastUsed   DateTime @default(now())
+  revoked    Boolean  @default(false)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Otp table - temporary store the otp for email verification
+model Otp {
+  id         String    @id @default(cuid())
+  userId     String    
+  otpHash  String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otp")
+}
+
+// Auth logs table - track authentication activities
+model AuthLog {
+  id           String   @id @default(cuid())
+  userId       String?  // null for failed login attempts
+  activityType String   // 'logout', 'failed_login', 'password_reset', 'oauth_login', 'email_login'
+  ipAddress    String?
+  userAgent    String?
+  success      Boolean  @default(true)
+  metadata     Json?    // extra details like error messages
+  createdAt    DateTime @default(now())
+  
+  // Relationships
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@map("auth_logs")
+}
+
+enum AuthProvider {
+  local
+  google
+}
