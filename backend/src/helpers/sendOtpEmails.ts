@@ -137,6 +137,11 @@ export default async function sendOtpEmail(options: emailData) {
             `,
         };
         const info = await transporter.sendMail(mailOptions);
+        console.log('Email sent successfully');
+        console.log('Message ID:', info.messageId);
+        console.log('Response:', info.response);
+        console.log('Accepted:', info.accepted);
+        console.log('Rejected:', info.rejected);
          return {
             success: true,
             message: 'OTP sent successfully',
