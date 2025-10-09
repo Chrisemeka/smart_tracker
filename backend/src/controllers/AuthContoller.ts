@@ -95,8 +95,10 @@ export class AuthController {
                 }
             });
 
-            await sendOtpEmail({ email, otp, userName: `${name}` });
-            console.log('OTP sent successfully');
+            const emailResponse = await sendOtpEmail({ email, otp, userName: `${name}` });
+            console.log(`Email sent to ${email} and OTP: ${otp}`);
+            console.log('User registered successfully');
+            console.log(emailResponse);
             return res.status(200).json({ message: 'User registered successfully' });
         } catch (error) {
             console.error(error);
