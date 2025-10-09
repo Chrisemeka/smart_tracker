@@ -1,4 +1,4 @@
-import { createTransport } from 'nodemailer';
+import { Resend } from 'resend';
 
 interface emailData {
   email: string;
@@ -6,28 +6,7 @@ interface emailData {
   userName?: string;
 }
 
-interface EmailConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  auth: {
-    user: string;
-    pass: string; 
-  };
-}
-
-const createEmailTransporter = () => {
-  const config: EmailConfig = {
-    host: process.env.EMAIL_HOST!,
-    port: parseInt(process.env.EMAIL_PORT!),
-    secure: false, 
-    auth: {
-      user: process.env.EMAIL_USER!,
-      pass: process.env.EMAIL_PASS! ,
-    },
-  };
-  return createTransport(config);
-};
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const generateEmailTemplate = (options: emailData): string => {
     const { userName, otp } = options;
@@ -58,18 +37,16 @@ const generateEmailTemplate = (options: emailData): string => {
           text-align: center;
           margin-bottom: 30px;
         }
-        .button {
-          display: inline-block;
-          background-color: #007bff;
+        .otp-box {
+          text-align: center;
+          background-color: #030213;
           color: white;
-          padding: 12px 30px;
-          text-decoration: none;
-          border-radius: 5px;
-          font-weight: bold;
+          padding: 20px;
+          border-radius: 8px;
           margin: 20px 0;
-        }
-        .button:hover {
-          background-color: #0056b3;
+          font-size: 32px;
+          font-weight: bold;
+          letter-spacing: 8px;
         }
         .footer {
           margin-top: 30px;
@@ -89,24 +66,25 @@ const generateEmailTemplate = (options: emailData): string => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>Email Verification</h1>
+          <h1>📧 Email Verification</h1>
         </div>
         
-        <p>Hello ${userName},</p>
+        <p>Hello <strong>${userName || 'there'}</strong>,</p>
         
-        <p>Please the below is the OTP to verify your email address and complete your authentication:</p>
+        <p>Please use the OTP below to verify your email address and complete your registration:</p>
         
-        <div style="text-align: center;">
-          <h2>${otp}</h2>
+        <div class="otp-box">
+          ${otp}
         </div>
         
         <div class="warning">
-          <strong>Important:</strong> Please do not share the OTP with anyone. If you didn't request this email, please ignore it.
+          <strong>⚠️ Important:</strong> This OTP will expire in 10 minutes. Please do not share it with anyone. If you didn't request this email, please ignore it.
         </div>
         
         <div class="footer">
-          <p>If you didn't request this verification, please ignore this email.</p>
+          <p>If you didn't request this verification, you can safely ignore this email.</p>
           <p>This is an automated message, please do not reply.</p>
+          <p style="margin-top: 20px; color: #999;">© ${new Date().getFullYear()} TrackSpace. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -116,42 +94,63 @@ const generateEmailTemplate = (options: emailData): string => {
 
 export default async function sendOtpEmail(options: emailData) {
     try {
-         if (!options.email || !options.otp) {
+        if (!options.email || !options.otp) {
             throw new Error('Email and OTP are required');
-        } 
-        const transporter = createEmailTransporter();
-        await transporter.verify
+        }
+
+        if (!process.env.RESEND_API_KEY) {
+            throw new Error('RESEND_API_KEY is not configured');
+        }
+
         const htmlContent = generateEmailTemplate(options);
 
-        const mailOptions = {
-            from: `Smart Tracker <smarttracker@gmail.com>`,
+        const { data, error } = await resend.emails.send({
+            from: 'TrackSpace <onboarding@resend.dev>', 
             to: options.email,
-            subject: 'Verify Your Email - OTP',
+            subject: 'Verify Your Email - TrackSpace',
             html: htmlContent,
             text: `
-                Hello ${options.userName || 'there'},
-                
-                Please verify your email with the OTP: ${options.otp}
-                                
-                If you didn't request this email, please ignore it.
-            `,
-        };
-        const info = await transporter.sendMail(mailOptions);
-         return {
+              Hello ${options.userName || 'there'},
+
+              Please verify your email with this OTP: ${options.otp}
+
+              This OTP will expire in 10 minutes.
+
+              If you didn't request this email, please ignore it.
+
+              Best regards,
+              TrackSpace Team
+                          `,
+        });
+
+        if (error) {
+            console.error('Resend API error:', error);
+            return {
+                success: false,
+                message: 'Failed to send OTP to email',
+                error: error
+            };
+        }
+
+        console.log('Email sent successfully via Resend:', data);
+
+        return {
             success: true,
             message: {
-                id: info.messageId,
-                res: `message sent successfully`,
-                response: info.response,
-                accepted: info.accepted,
-                rejected: info.rejected
+                id: data?.id || 'unknown',
+                res: 'Message sent successfully via Resend',
+                response: 'Email queued for delivery',
+                accepted: [options.email],
+                rejected: []
             },
-         }
-    } catch (error) {
+        };
+
+    } catch (error: any) {
+        console.error('Error sending OTP email:', error);
         return {
             success: false,
             message: 'Failed to send OTP to email',
-            error: error
-        }
+            error: error.message || error
+        };
     }
 }
