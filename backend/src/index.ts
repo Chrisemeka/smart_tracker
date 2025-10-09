@@ -15,7 +15,7 @@ app.use(cors({
   origin: (origin, callback) => {
     const allowedOrigins = [
       'http://localhost:5173',
-      'https://smart-tracker-one.vercel.app'
+      'https://track-space-one.vercel.app'
     ];
 
     if (!origin || allowedOrigins.includes(origin)) {
